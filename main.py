@@ -1,12 +1,20 @@
-from scholarly import scholarly
-from scholarly import ProxyGenerator
+# from scholarly import scholarly
+# from scholarly import ProxyGenerator
+import logging
 from crossref.restful import Works
-from utils.utils import store_dicts_in_sqlite_with_pandas
+from ratelimiter import RateLimiter
+from utils.utils import *
+
+# Set up logging
+logging.basicConfig(
+    format='%(asctime)s %(levelname)-8s %(message)s',
+    level=logging.INFO,
+    datefmt='%Y-%m-%d %H:%M:%S')
 
 # Setup a proxy generator
-pg = ProxyGenerator()
-pg.FreeProxies()
-scholarly.use_proxy(pg)
+# pg = ProxyGenerator()
+# pg.FreeProxies()
+# scholarly.use_proxy(pg)
 
 # Define a search
 # Define query
@@ -23,7 +31,8 @@ year_low = 2010
 year_high = None
 sort_by = 'relevance' # 'relevance', 'date', 'citations'
 
-db = r"C:\\cross_ref.db"
+db_crossref = r"C:\\cross_ref.db"
+db_scholar = r"C:\\scholar.db"
 # Create crossref object
 works = Works()
 
@@ -34,37 +43,47 @@ works = Works()
 # store_dicts_in_sqlite_with_pandas(db, 'crossref', cross_ref_results)
 
 # Search
-search_query_results = scholarly.search_pubs(query=query,
-                                            patents=include_patens,
-                                            citations=include_citations,
-                                            year_low=year_low,
-                                            year_high=year_high,
-                                            sort_by=sort_by)
+search_query_results = query_scholarly(query=query,
+                                       patents=include_patens,
+                                       citations=include_citations,
+                                       year_low=year_low,
+                                       year_high=year_high,
+                                       sort_by=sort_by)
 
 results_scholar = []
 results_crossref = []
 results_crossref_filtered = []
+results = []
+scholar_only = []
 
 for pub in search_query_results:
-    scholarly.pprint(pub)
-    pub = scholarly.fill(pub)
+    # scholarly.pprint(pub)
+    # pub = scholarly.fill(pub)
     title = pub['bib']['title']
     year = pub['bib']['pub_year']
-    bibliobgraphic = f'{title} {year}'
     author = pub['bib']['author']
-    if isinstance(author, list):
-        author = ', '.join(author)
-    # Get DOI using crossref
-    cref_res = works.query(bibliographic=bibliobgraphic, author=author)
+    logging.info(f'Processing {title} {author} {year}')
 
-    for item in cref_res:
-        print(item)
+    # Get DOI using crossref
+    cref_res = call_crossref(works, title, author, year)
+    if cref_res:
+        results_crossref.append(cref_res)
+    else:
+        logging.warning(f'No crossref results found for {title} {author} {year}')
+        pub = scholarly.fill(pub)
+        logging.info('Using Google Scholar only')
+        scholar_only.append(pub)
+
+store_dicts_in_sqlite_with_pandas(db_crossref, 'crossref', results_crossref)
+store_dicts_in_sqlite_with_pandas(db_scholar, 'scholar', scholar_only)
+    # for item in cref_res:
+    #     print(item)
     # if len(cref_res) > 1:
     #     print('More than one result')
     # else:
     #     cref_res = cref_res[0]
     # doi = cref_res['DOI']
 
-    pub = scholarly.fill(pub)
-    scholarly.pprint(pub)
+    # pub = scholarly.fill(pub)
+    # scholarly.pprint(pub)
 
