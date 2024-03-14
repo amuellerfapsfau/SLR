@@ -56,13 +56,23 @@ def call_crossref(works: Works, title, author, year):
     return None
 
 # TODO WIP@AMl
-def convert_query_string_to_regex(query_string):
+def convert_search_string_to_regex(search_string):
     # Split each OR conjunction separated by AND
-    query_string = query_string.split('AND')
+    and_terms = search_string.split(') AND (')
     # Remove leading and trailing spaces and ( ) characters
-    query_string = [x.strip(' ()') for x in query_string]
+    and_terms = [x.strip(' ()') for x in and_terms]
 
+def decompose_and_terms(and_term):
+    # Split each AND conjunction
+    or_terms = and_term.split(') AND (')
+    # Remove leading and trailing spaces and ( ) characters
+    or_terms = [x.strip(' ()') for x in or_terms]
+    return or_terms
 
+def contains_wildcards(term):
+    if '*' in term or '?' in term or '-' in term:
+        return True
+    return False
 
 def store_dicts_in_sqlite_with_pandas(db_name, table_name, list_of_dicts):
     # Convert the list of dicts into a DataFrame

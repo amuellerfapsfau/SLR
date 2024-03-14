@@ -4,6 +4,7 @@ import logging
 from crossref.restful import Works
 from ratelimiter import RateLimiter
 from utils.utils import *
+from utils.scopus import *
 
 # Set up logging
 logging.basicConfig(
@@ -17,14 +18,26 @@ logging.basicConfig(
 # scholarly.use_proxy(pg)
 
 # Define a search
-# Define query
-methodology_substring = '"machine learning" OR "deep learning" OR "neural?network" OR "learn* system" OR "virtual metrology" OR "artificial intelligence" OR "data mining" OR "data science" OR "big data" OR "predictive modeling" OR "predictive analytics" OR "predictive analysis" OR "predictive algorithm" OR "predictive model" OR "predictive system" OR "predictive method" OR "predictive technique" OR "predictive tool" OR "predictive technology" OR "predictive approach" OR "predictive framework" OR "predictive process" OR "predictive application" OR "predictive software" OR "predictive hardware" OR "predictive service" OR "predictive product" OR "predictive solution" OR "predictive platform" OR "predictive environment'
-process_substring = '("physical vapor depostion" OR "physical vapour depostion" OR "pvd" OR "chemical vapor depostion" OR "chemical vapour depostion" OR "CVD" OR "sputter" OR "evaporation" OR "ebeam") AND -disease'
+methodology_substring = '"machine learning" OR "deep learning" OR "neural?network" OR "learn* system" OR "virtual metrology" OR "artificial intelligence" OR "data mining" OR "data science" OR "big data" OR "predictive modeling" OR "predictive analytics" OR "predictive analysis" OR "predictive algorithm" OR "predictive model" OR "predictive system" OR "predictive method" OR "predictive technique" OR "predictive tool" OR "predictive technology" OR "predictive approach" OR "predictive framework" OR "predictive process" OR "predictive application" OR "predictive software" OR "predictive hardware" OR "predictive service" OR "predictive product" OR "predictive solution" OR "predictive platform" OR "predictive environment"'
+process_substring = '"physical vapor depostion" OR "physical vapour depostion" OR "pvd" OR "chemical vapor depostion" OR "chemical vapour depostion" OR "CVD" OR "sputter" OR "evaporation" OR "ebeam" AND -disease'
 product_substring = '"thin?film" OR "coat*" OR "layer" OR "lamination"'
 application_substring = '"semiconductor" OR "solar cell" OR "photovoltaic" OR "reflectance" OR "reflective" OR "anti?reflective" OR "ophtalmic" OR "optical" OR "optoelectronic" OR "optical filter" OR "optical coating" OR "optical film" OR "optical layer" OR "optical lamination" OR "optical device" OR "optical component" OR "optical system" OR "optical instrument" OR "optical equipment" OR "optical material" OR "optical technology" OR "optical process" OR "optical product" OR "optical application" OR "optical service" OR "optical solution" OR "optical tool" OR "optical technique" OR "optical method" OR "optical approach"'
-query = f"({methodology_substring}) AND ({process_substring}) AND ({product_substring}) AND ({application_substring})"
+search_string = f"({methodology_substring}) AND ({process_substring}) AND ({product_substring}) AND ({application_substring})"
 
-# Define search parameters
+# Define database
+scopus_db = r"C:\\Repositories\\_Data\SLR\\scopus.db"
+
+# Query scopus
+search_string_scopus = convert_search_string_to_scopus(search_string)
+scopus_results = search_scopus(search_string_scopus)
+# store scopus search results in sqlite
+scopus_results = store_scopus_results_in_sqlite(scopus_db, 'search_results', scopus_results)
+retrieve_scopus_abstracts_from_search_results(scopus_results, scopus_db, backward_search_iteration=0)
+
+
+regex = convert_search_string_to_regex(search_string)
+
+# Define search parameters for scholar
 include_patens = False
 include_citations = True
 year_low = 2010
@@ -43,7 +56,7 @@ works = Works()
 # store_dicts_in_sqlite_with_pandas(db, 'crossref', cross_ref_results)
 
 # Search
-search_query_results = query_scholarly(query=query,
+search_query_results = query_scholarly(query=search_string,
                                        patents=include_patens,
                                        citations=include_citations,
                                        year_low=year_low,
