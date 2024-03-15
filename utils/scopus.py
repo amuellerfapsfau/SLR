@@ -27,7 +27,8 @@ def search_scopus(query):
 # Scopus abstract retrieval
 def retrieve_scopus_abstracts_from_search_results(search_results_df, db_name, backward_search_iteration=0):
     # Get the abstracts from the search results
-    abstracts = []
+    abstract_retrieval_columns = ['eid', 'abstract', 'language', 'publication_name', 'publisher', 'ref_count', 'link']
+    abstract_retrieval_list = []
     eid_subject_areas_tuples = []
     eid_idxterms_tuples = []
     eid_authkeywords_tuples = []
@@ -39,6 +40,21 @@ def retrieve_scopus_abstracts_from_search_results(search_results_df, db_name, ba
     
     for eid in search_results_df['eid']:
         ab = AbstractRetrieval(eid, id_type='eid', view='FULL')
+        # check if abstract/description is not None and if description contains copyright prefix
+        if ab.abstract is not None and ab.description is not None:
+            if len(ab.description) > 0.9 * len(ab.abstract):
+                abstract = ab.description
+            else:
+                abstract = ab.abstract
+        elif ab.description is not None:
+            abstract = ab.description
+        elif ab.abstract is not None:
+            abstract = ab.abstract
+        else:
+            abstract = None
+
+        abstract_retrieval_list.append([ab.eid, abstract, ab.language, ab.publicationName, ab.publisher, ab.refcount, ab.scopus_link])
+
         subject_areas = ab.subject_areas
         eid_subject_areas_tuples.append((eid, subject_areas))
         eid_idxterms_tuples.append((eid, ab.idxterms))
@@ -119,8 +135,9 @@ def retrieve_scopus_abstracts_from_search_results(search_results_df, db_name, ba
         df = pd.DataFrame({'eid': eid_list, 'references_eid': reference_eid_list})
         # store in sqlite
         store_scopus_results_in_sqlite(db_name, 'eid_references', df)
-
-    return abstracts
+    
+    abstract_retrieval_df = pd.DataFrame(abstract_retrieval_list, columns=abstract_retrieval_columns)
+    return abstract_retrieval_df
 
 
 # Store scopus results in sqlite

@@ -1,4 +1,0 @@
-
-scopus = {
-    # TODO
-}

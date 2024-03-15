@@ -1,10 +1,13 @@
 # from scholarly import scholarly
 # from scholarly import ProxyGenerator
 import logging
+import numpy as np
 from crossref.restful import Works
 from ratelimiter import RateLimiter
 from utils.utils import *
 from utils.scopus import *
+from utils.crossref import *
+from config import cfg
 
 # Set up logging
 logging.basicConfig(
@@ -16,6 +19,10 @@ logging.basicConfig(
 # pg = ProxyGenerator()
 # pg.FreeProxies()
 # scholarly.use_proxy(pg)
+
+
+# Create crossref object
+works = Works()
 
 # Define a search
 methodology_substring = '"machine learning" OR "deep learning" OR "neural?network" OR "learn* system" OR "virtual metrology" OR "artificial intelligence" OR "data mining" OR "data science" OR "big data" OR "predictive modeling" OR "predictive analytics" OR "predictive analysis" OR "predictive algorithm" OR "predictive model" OR "predictive system" OR "predictive method" OR "predictive technique" OR "predictive tool" OR "predictive technology" OR "predictive approach" OR "predictive framework" OR "predictive process" OR "predictive application" OR "predictive software" OR "predictive hardware" OR "predictive service" OR "predictive product" OR "predictive solution" OR "predictive platform" OR "predictive environment"'
@@ -31,10 +38,14 @@ scopus_db = r"C:\\Repositories\\_Data\SLR\\scopus.db"
 search_string_scopus = convert_search_string_to_scopus(search_string)
 scopus_results = search_scopus(search_string_scopus)
 # store scopus search results in sqlite
-scopus_results = store_scopus_results_in_sqlite(scopus_db, 'search_results', scopus_results)
-retrieve_scopus_abstracts_from_search_results(scopus_results, scopus_db, backward_search_iteration=0)
+scopus_results_df = store_scopus_results_in_sqlite(scopus_db, 'search_results', scopus_results)
+abstract_retrieval_df = retrieve_scopus_abstracts_from_search_results(scopus_results_df, scopus_db, backward_search_iteration=0)
 
+scopus_results_df = scopus_results_df.merge(abstract_retrieval_df, on='eid', how='left')
 
+important_columns = list(cfg.scopus['field_mapping']['search_results'].values())
+
+fill_missing_values_using_crossref(works, scopus_results_df, important_columns)
 regex = convert_search_string_to_regex(search_string)
 
 # Define search parameters for scholar
@@ -46,8 +57,7 @@ sort_by = 'relevance' # 'relevance', 'date', 'citations'
 
 db_crossref = r"C:\\cross_ref.db"
 db_scholar = r"C:\\scholar.db"
-# Create crossref object
-works = Works()
+
 
 # cross_ref_results_list = []
 # cross_ref_results = works.query(bibliographic=query)
