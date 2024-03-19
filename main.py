@@ -9,6 +9,7 @@ from utils.utils import *
 from utils.scopus import *
 from utils.crossref import *
 from utils.semantic_scholar import *
+from utils.acm import *
 from config import cfg
 
 logger = setup_logger('main', r'.\\logs\\main.log', level=logging.INFO)
@@ -32,6 +33,10 @@ process_substring = '"physical vapor depostion" OR "physical vapour depostion" O
 product_substring = '"thin?film" OR "coat*" OR "layer" OR "lamination"'
 application_substring = '"semiconductor" OR "solar cell" OR "photovoltaic" OR "reflectance" OR "reflective" OR "anti?reflective" OR "ophtalmic" OR "optical" OR "optoelectronic" OR "optical filter" OR "optical coating" OR "optical film" OR "optical layer" OR "optical lamination" OR "optical device" OR "optical component" OR "optical system" OR "optical instrument" OR "optical equipment" OR "optical material" OR "optical technology" OR "optical process" OR "optical product" OR "optical application" OR "optical service" OR "optical solution" OR "optical tool" OR "optical technique" OR "optical method" OR "optical approach"'
 search_string = f"({methodology_substring}) AND ({process_substring}) AND ({product_substring}) AND ({application_substring})"
+
+# WIP
+acm_url = build_acm_search_url(search_string)
+scrape_acm_search_results(acm_url)
 
 # Define database
 scopus_db = r"C:\\Repositories\\_Data\SLR\\scopus.db"
