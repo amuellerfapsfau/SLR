@@ -7,15 +7,18 @@ from crossref.restful import Works
 from sqlalchemy import create_engine
 from ratelimiter import RateLimiter
 
-logging.basicConfig(
-    format='%(asctime)s %(levelname)-8s %(message)s',
-    level=logging.INFO,
-    datefmt='%Y-%m-%d %H:%M:%S')
+def setup_logger(name, log_file, level=logging.INFO):
+    """To setup as many loggers as you want"""
+    formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+    
+    handler = logging.FileHandler(log_file)        
+    handler.setFormatter(formatter)
 
-# Setup a proxy generator
-# pg = ProxyGenerator()
-# pg.FreeProxies()
-# scholarly.use_proxy(pg)
+    logger = logging.getLogger(name)
+    logger.setLevel(level)
+    logger.addHandler(handler)
+
+    return logger
 
 @RateLimiter(max_calls=20, period=86400)
 def query_scholarly(query, patents=False, citations=True, year_low=2010, year_high=None, sort_by='relevance'):
@@ -27,33 +30,6 @@ def query_scholarly(query, patents=False, citations=True, year_low=2010, year_hi
                                                 year_high=year_high,
                                                 sort_by=sort_by)
     return search_query_results
-
-@RateLimiter(max_calls=50, period=1)
-def call_crossref(works: Works, title, author, year):
-    if isinstance(author, list):
-        author = ', '.join(author)
-    bibliographic = f'{title} {author} {year}' 
-    logging.info(f'Crossref search: {bibliographic}')
-    results = works.query(bibliographic=bibliographic)
-    for i, item in enumerate(results):
-        if i == 50:
-            logging.warning(f'Not within first 50 results. Breaking')
-            break 
-        # check if title and author exists
-        if 'title' not in item:
-            continue
-        if 'author' not in item:
-            continue
-        if item['title'][0].lower() == title.lower():
-            # check authors
-            found_authors = []
-            for cref_author in item['author']:
-                if cref_author['family'].lower() in author.lower():
-                    found_authors.append(cref_author['family'])
-            logging.info(found_authors)
-            return item
-        
-    return None
 
 # TODO WIP@AMl
 def convert_search_string_to_regex(search_string):

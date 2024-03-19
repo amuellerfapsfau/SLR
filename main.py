@@ -3,17 +3,16 @@
 import logging
 import numpy as np
 from crossref.restful import Works
+from semanticscholar import SemanticScholar
 from ratelimiter import RateLimiter
 from utils.utils import *
 from utils.scopus import *
 from utils.crossref import *
+from utils.semantic_scholar import *
 from config import cfg
 
-# Set up logging
-logging.basicConfig(
-    format='%(asctime)s %(levelname)-8s %(message)s',
-    level=logging.INFO,
-    datefmt='%Y-%m-%d %H:%M:%S')
+logger = setup_logger('main', r'.\\logs\\main.log', level=logging.INFO)
+logger.info('Run main.py')
 
 # Setup a proxy generator
 # pg = ProxyGenerator()
@@ -23,6 +22,9 @@ logging.basicConfig(
 
 # Create crossref object
 works = Works()
+
+# Create Semantic Scholar object
+ss = SemanticScholar()
 
 # Define a search
 methodology_substring = '"machine learning" OR "deep learning" OR "neural?network" OR "learn* system" OR "virtual metrology" OR "artificial intelligence" OR "data mining" OR "data science" OR "big data" OR "predictive modeling" OR "predictive analytics" OR "predictive analysis" OR "predictive algorithm" OR "predictive model" OR "predictive system" OR "predictive method" OR "predictive technique" OR "predictive tool" OR "predictive technology" OR "predictive approach" OR "predictive framework" OR "predictive process" OR "predictive application" OR "predictive software" OR "predictive hardware" OR "predictive service" OR "predictive product" OR "predictive solution" OR "predictive platform" OR "predictive environment"'
@@ -42,10 +44,16 @@ scopus_results_df = store_scopus_results_in_sqlite(scopus_db, 'search_results', 
 abstract_retrieval_df = retrieve_scopus_abstracts_from_search_results(scopus_results_df, scopus_db, backward_search_iteration=0)
 
 scopus_results_df = scopus_results_df.merge(abstract_retrieval_df, on='eid', how='left')
+scopus_results_df = remove_irrelevant_scopus_search_results(scopus_results_df)
 
-important_columns = list(cfg.scopus['field_mapping']['search_results'].values())
+# get dict_items where the value of cfg.essential_columns is are in cfg.scopus['field_mapping']['search_results'].keys()
+important_columns = {}
+for element in cfg.scopus['field_mapping']['search_results'].items():
+    if element[0] in cfg.essential_columns:
+        important_columns[element[0]] = element[1]
 
 fill_missing_values_using_crossref(works, scopus_results_df, important_columns)
+fill_missing_values_using_semantic_scholar(ss, scopus_results_df, important_columns)
 regex = convert_search_string_to_regex(search_string)
 
 # Define search parameters for scholar

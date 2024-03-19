@@ -1,3 +1,7 @@
+essential_columns = [
+    'title', 'author', 'date', 'keywords', 'subject areas', 'abstract'
+]
+
 
 scopus = {
     'field_mapping' : {
@@ -72,6 +76,48 @@ crossref = {
             'funded_by': 'funder', # TODO list of dicts, parse values from 'name
             'abstract': 'description', # MISSING
             'cited_by_count': 'is-referenced-by-count', # MISSING
+            'language': 'language'
+        }
+    }
+}
+
+
+semantic_scholar = {
+    'field_mapping' : {
+        'search_results': {
+            'title': 'title', # correct
+            'identifier': 'paperId', # correct
+            'doi': 'externalIds', # dictionary TODO parse from key 'DOI'
+            'subtype': 'publicationTypes', # correct, list of strings TODO
+            'publication_name': 'journal', # correct (also conference name), same as 'venue'
+            'aggregation_type': 'container-title',
+            'author': 'authors', # list of dictionary (id, name) TODO parse name
+            'country': 'affiliation_country', 
+            'date': 'publicationDate', # correct TODO datetime
+            'keywords': 'authkeywords', 
+            'subject_areas': ['fieldsOfStudy', 's2FieldsOfStudy'], # correct
+            'open_access': 'isOpenAccess', # correct
+            'funded_by': 'funder', 
+            'abstract': 'abstract', # correct
+            'cited_by_count': 'citationCount', # correct
+            'language': 'language',
+            'citations': 'citations' # correct --> TODO use for forward search
+        }, 
+        'references': {
+            'title': 'title', # correct
+            'identifier': 'paperId', # correct
+            'doi': 'externalIds', # dictionary TODO parse from key 'DOI'
+            'subtype': 'publicationTypes', # correct, list of strings TODO
+            'publication_name': 'journal', # correct (also conference name), same as 'venue'
+            'aggregation_type': 'container',
+            'author': 'author',
+            'country': 'affiliation_country', 
+            'date': 'publicationDate', # correct TODO datetime
+            'keywords': 'authkeywords', 
+            'open_access': 'isOpenAccess', # correct
+            'funded_by': 'funder', 
+            'abstract': 'description',
+            'cited_by_count': 'citationCount', # correct 
             'language': 'language'
         }
     }

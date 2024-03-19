@@ -24,6 +24,13 @@ def search_scopus(query):
     search = ScopusSearch(query)
     return search.results
 
+# Remove irrelevant rows from scopus search results
+def remove_irrelevant_scopus_search_results(scopus_results_df):
+    # Remove Conference Reviews
+    scopus_results_df = scopus_results_df[scopus_results_df['subtype'] != 'cr']
+    # TODO maybe remove other records later
+    return scopus_results_df
+
 # Scopus abstract retrieval
 def retrieve_scopus_abstracts_from_search_results(search_results_df, db_name, backward_search_iteration=0):
     # Get the abstracts from the search results
