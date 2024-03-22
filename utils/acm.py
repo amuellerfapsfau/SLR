@@ -21,6 +21,7 @@ class Reference_Item:
     issue: str = None
     pub_date: str = None
     doi: str = None
+    note: str = None
 
 @dataclass
 class ACM_Item:
@@ -29,11 +30,16 @@ class ACM_Item:
     date: str = None
     title: str = None
     authors: List[str] = None
+    affiliation: str = None
     publication: str = None
     publication_short: str = None
     abstract: str = None
     author_tags: List[str] = None
+    index_terms: List[str] = None
+    subjects: List[str] = None
+    keywords: List[str] = None
     cited_by: List[str] = None
+    references: List[Reference_Item] = None
 
 
 logger = setup_logger('acm', r'.\\logs\\acm.log', level=logging.INFO)
@@ -45,19 +51,27 @@ def build_acm_search_url(query):
     query = ' OR '.join([title_query, abstract_query, keyword_query])
     query = urllib.parse.quote(query)
     query = query.replace('%20', '+')
-    query = f'https://dl.acm.org/action/doSearch?fillQuickSearch=false&target=advanced&AllField={query}&expand=all&startPage=0&pageSize=50'
+    query = f'https://dl.acm.org/action/doSearch?fillQuickSearch=false&target=advanced&AllField={query}&expand=all&startPage=0&pageSize=10'
     return query
 
-def scrape_acm_search_results(url):
-    driver = webdriver.Firefox()
+def scrape_acm_search_results(url, search_results_list, driver=None):
+    if not driver:
+        driver = webdriver.Firefox()
     driver.get(url)
     # reject cookies
     decline_cookies(driver)
+    # get hitslength
+    try:
+        hits = driver.find_element(By.CLASS_NAME, 'hitsLength').text
+        if hits:
+            hits = int(hits)
+    except Exception as e:
+        logger.error(f'Error getting hits length: {e}')
+        hits = 0
     # get search results box
     search_results = driver.find_element(By.CLASS_NAME, 'search-result__xsl-body')
     # search results list
     results = search_results.find_elements(By.CLASS_NAME, 'search__item')
-    search_results_list = []
     for result in results:
         acm_item = ACM_Item()
         try:
@@ -79,6 +93,7 @@ def scrape_acm_search_results(url):
         
         # try expand authors
         try:
+            WebDriverWait(result, 10).until(EC.element_to_be_clickable(result.find_element(By.CLASS_NAME, 'count-list').find_element(By.TAG_NAME, 'button')))
             result.find_element(By.CLASS_NAME, 'count-list').find_element(By.TAG_NAME, 'button').click()
         except Exception as e:
             logger.error(f'Error clicking on expand-authors button: {e}')
@@ -102,41 +117,133 @@ def scrape_acm_search_results(url):
             accordion = result.find_element(By.CLASS_NAME, 'highlights-holder').find_element(By.CLASS_NAME, 'accordion')
             # accordion = wait.until(EC.element_to_be_clickable(accordion))
             accordion.click()
-            acm_item.abstract = result.find_element(By.CLASS_NAME, 'abstract-text').find_element(By.TAG_NAME, 'p').text
+            WebDriverWait(result, 10).until(EC.presence_of_element_located((By.CLASS_NAME, 'abstract-text')))
+            elements = result.find_element(By.CLASS_NAME, 'abstract-text').find_elements(By.TAG_NAME, 'p')
+            if len(elements) == 1:
+                elements = [elements]
+            abstract_elements = []
+            for element in elements:
+                abstract_elements.append(element.text)
+            acm_item.abstract = ' '.join(abstract_elements)
         except Exception as e:
             logger.error(f'Error getting abstract: {e}')
+        # try loading subject
+        try:
+            WebDriverWait(result, 10).until(EC.presence_of_element_located((By.CLASS_NAME, 'Subject')))
+            subjects = result.find_element(By.CLASS_NAME, 'Subject').find_elements(By.TAG_NAME, 'p')
+            subjects_list = []
+            for subject in subjects:
+                text = subject.text
+                if text not in subjects_list and text != '':
+                    subjects_list.append(text)
+            acm_item.subjects = subjects_list
+        except Exception as e:
+            logger.error(f'Error getting subjects: {e}')
+        # try getting keywords
+        try:
+            WebDriverWait(result, 10).until(EC.presence_of_element_located((By.CLASS_NAME, 'keywords-text')))
+            keywords = result.find_element(By.CLASS_NAME, 'keywords-text').find_elements(By.TAG_NAME, 'p')
+            keywords_list = []
+            for kw in keywords:
+                text = kw.text
+                if text not in keywords_list and text != '':
+                    keywords_list.append(text)
+            acm_item.keywords = keywords_list
+        except Exception as e:
+            logger.error(f'Error getting keywords: {e}')
         # open publication in new window and add information to acm_item
         open_publication_page(result, acm_item)
-        # open publication in new tab
-        result.find_element(By.CLASS_NAME, 'issue-item__title').find_element(By.TAG_NAME, 'a').send_keys(Keys.CONTROL + 't')
-
-    # input mit classname: 'issue-Item__checkbox' name enthält die DOI
-    # div mit classname: 'issue-heading' enhält publication type (Article, Doctoral_thesis, ...)
-    # div mit classname: 'bookPubDate simple-tooltip__block--b' --> data-title enthält das Datum in Form "Published: 04 December 2013"
-    # href mit wert "/doi/{doi von oben}" (bei article) Inhalt von allen <span> tags zusammengehängt ergibt den Titel
-    # bzw: das <a> tag / all <a> tags konkatentiert in node mit classname 'issue-item__title' (in einem span)
-    # ul mit classname 'rlist--inline loa truncate-list trunc-done' enthält spans mit classname 'hlFld-ContribAuthor', welches ein <a> tag enthält dessen 'title' attribut den Autor enthält
-    print('Finished')
+        # add acm_item to list
+        search_results_list.append(acm_item)
+        logger.info(f'Finished item: {acm_item.title}')
+        print(f'Finished item: {acm_item.title}')
+    
+    logger.info(f'Finished page: {len(search_results_list)}/{hits} hits')
+    print(f'Finished page: {len(search_results_list)}/{hits} hits')
+    try:
+        next_page_url = driver.find_element(By.CLASS_NAME, 'pagination').find_element(By.CLASS_NAME, 'pagination__btn--next').get_attribute('href')
+    except Exception as e:
+        next_page_url = None
+        logger.error(f'Error getting next page url: {e}')
+        if len(search_results_list) < hits:
+            logger.error(f'Not all hits were processed: {len(search_results_list)}/{hits}')
+        else:
+            logger.info('All hits were processed')
+    if next_page_url:
+        scrape_acm_search_results(next_page_url, search_results_list, driver)
 
 def decline_cookies(driver):
     # decline all cookies
     try:
         driver.find_element(By.ID, 'CybotCookiebotDialogBodyLevelButtonLevelOptinDeclineAll').click()
+        WebDriverWait(driver, 10).until(EC.invisibility_of_element_located((By.ID, 'CybotCookiebotDialogBodyLevelButtonLevelOptinDeclineAll')))
     except Exception as e:
         logger.error(f'Error declining cookies: {e}')
 
 
 def open_publication_page(result_box, item: ACM_Item):
-    # conference paper
+    # get url, open and decline cookies
     try:
         pub_link = result_box.find_element(By.CLASS_NAME, 'issue-item__title').find_element(By.TAG_NAME, 'a').get_attribute('href')
         driver = webdriver.Firefox()
         driver.get(pub_link)
         # reject cookies
         decline_cookies(driver)
+    except Exception as e:
+        logger.error(f'Error getting publication link: {e}')
+        return
+    # if item.publication_type == 'ARTICLE' or item.publication_type == 'RESEARCH-ARTICLE':
+    # get abstract
+    try:
+        abstract = driver.find_element(By.CLASS_NAME, 'abstractSection').find_element(By.TAG_NAME, 'p').text
+        if item.abstract is None or (item.abstract != abstract and len(abstract) >= len(item.abstract)):
+            item.abstract = abstract
+    except Exception as e:
+        logger.error(f'Error getting abstract: {e}')
+    # get affiliation
+    try:
+        item.affiliation = driver.find_element(By.CLASS_NAME, 'published-info').find_element(By.CLASS_NAME, 'rlist--inline').text
+    except Exception as e:
+        logger.error(f'Error getting affiliation: {e}')
+    # get index terms
+    try:
+        elements = driver.find_element(By.CSS_SELECTOR, 'ol.rlist.organizational-chart').find_elements(By.TAG_NAME, 'a')
+        index_terms = []
+        for element in elements:
+            index_terms.append(element.text)
+        item.index_terms = index_terms
+    except Exception as e:
+        logger.error(f'Error getting index terms: {e}')
+    # get references (RESEARCH-ARTICLE)
+    try:
+        references_section = driver.find_element(By.CSS_SELECTOR, 'div.article__section.article__references')
+        show_all_references_button = references_section.find_element(By.CSS_SELECTOR, 'button.btn')
+        if show_all_references_button:
+            show_all_references_button.click()
+        references = references_section.find_element(By.CSS_SELECTOR, 'ol.rlist.references__list').find_elements(By.TAG_NAME, 'li')
+        references_list = []
+        for ref in references:
+            references_list.append(parse_reference_item(ref, item.publication_type))
+        item.references = references_list
+    except Exception as e:
+        logger.error(f'Error getting references: {e}')
+    # get citations (open in new window)
+    try:
+        cited_by_section = driver.find_element(By.CSS_SELECTOR, 'div.article__cited.article__section')
+        citedby_url = cited_by_section.find_element(By.ID, 'downloadAllMain').get_attribute('href')
+        if not citedby_url.endswith('#'):
+            cited_by_list = open_cited_by_page(citedby_url, item.publication_type)
+            item.cited_by = cited_by_list
+    except Exception as e:
+        logger.error(f'Error getting cited by: {e}')
+    # get author tags (open side bar)
+    try:
+        WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.CLASS_NAME, 'loa__link')))
         driver.find_element(By.CLASS_NAME, 'loa__link').click()
+        WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.CLASS_NAME, 'tab')))
         slide_content = driver.find_element(By.CLASS_NAME, 'w-slide__content')
         # open side bar
+        WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, 'pill-information__contentcon')))
         slide_content.find_element(By.ID, 'pill-information__contentcon').click()
         author_tags = slide_content.find_element(By.CLASS_NAME, 'tags-widget').find_elements(By.TAG_NAME, 'li')
         author_tags_list = []
@@ -145,87 +252,174 @@ def open_publication_page(result_box, item: ACM_Item):
         item.author_tags = author_tags_list
         # close side bar
         driver.find_element(By.CLASS_NAME, 'w-slide__back').click()
-        # open cited by in new window
-        citedby_url = driver.find_element(By.ID, 'downloadAllMain').get_attribute('href')
-        cited_by_list = open_cited_by_page(citedby_url)
-        item.cited_by = cited_by_list
+        # # open cited by in new window
+        # try:
+        #     cited_by_section = driver.find_element(By.CSS_SELECTOR, 'div.article__cited.article__section')
+        #     citedby_url = cited_by_section.find_element(By.ID, 'downloadAllMain').get_attribute('href')
+        #     if not item.doi in citedby_url:
+        #         cited_by_list = open_cited_by_page(citedby_url, item.publication_type)
+        #         item.cited_by = cited_by_list
+        # except Exception as e:
+        #     logger.error(f'Error getting cited by: {e}')
+        # # get references (RESEARCH-ARTICLE)
+        # references_section = driver.find_element(By.CSS_SELECTOR, 'div.article__section.article__references')
+        # show_all_references_button = references_section.find_element(By.CSS_SELECTOR, 'button.btn')
+        # if show_all_references_button:
+        #     show_all_references_button.click()
+        # references = references_section.find_element(By.CSS_SELECTOR, 'ol.rlist.references__list').find_elements(By.TAG_NAME, 'li')
+        # references_list = []
+        # for ref in references:
+        #     references_list.append(parse_reference_item(ref, item.publication_type))
+        # item.references = references_list
     except Exception as e:
-        logger.error(f'Error getting publication link: {e}')
+        logger.error(f'Error getting author tags: {e}')
         pub_link = None
-    # TODO doctoral thesis
-    if not pub_link:
-        try:
-            pub_link = result_box.find_element(By.CLASS_NAME, 'issue-item__title').find_element(By.TAG_NAME, 'a').get_attribute('href')
-        except Exception as e:
-            logger.error(f'Error getting publication link: {e}')
-            pub_link = None
+
+    # if item.publication_type == 'DOCTORAL_THESIS' or not pub_link: # TODO find better methode to distinguish publication types
+    #     # get abstract
+    #     try:
+    #         abstract = driver.find_element(By.CLASS_NAME, 'abstractSection').find_element(By.TAG_NAME, 'p').text
+    #         if item.abstract is None or (item.abstract != abstract and len(abstract) >= len(item.abstract)):
+    #             item.abstract = abstract
+    #     except Exception as e:
+    #         logger.error(f'Error getting abstract: {e}')
+    #     # get affiliation
+    #     try:
+    #         item.affiliation = driver.find_element(By.CLASS_NAME, 'published-info').find_element(By.CLASS_NAME, 'rlist--inline').text
+    #     except Exception as e:
+    #         logger.error(f'Error getting affiliation: {e}')
+    #     # get index terms
+    #     try:
+    #         elements = driver.find_element(By.CSS_SELECTOR, 'ol.rlist.organizational-chart').find_elements(By.TAG_NAME, 'a')
+    #         index_terms = []
+    #         for element in elements:
+    #             index_terms.append(element.text)
+    #         item.index_terms = index_terms
+    #     except Exception as e:
+    #         logger.error(f'Error getting index terms: {e}')
     # TODO add more publication types
     if not pub_link:
-        driver = webdriver.Firefox()
-        driver.get(pub_link)
+        None
+    driver.close()
         
 
-def open_cited_by_page(url):
+def open_cited_by_page(url, pub_type):
     driver = webdriver.Firefox()
     driver.get(url)
     # reject cookies
     decline_cookies(driver)
-    ref_items = driver.find_element(By.CLASS_NAME, 'references__item')
+    ref_items = driver.find_elements(By.CLASS_NAME, 'references__item')
     ref_item_list = []
     if isinstance(ref_items, webdriver.remote.webelement.WebElement):
         ref_items = [ref_items]
     for ref_item in ref_items:
-        ref_item_list.append(parse_reference_item(ref_item))   
+        ref_item_list.append(parse_reference_item(ref_item, pub_type))   
     # close
     driver.close()
     return ref_item_list
 
-def parse_reference_item(ref_item):
-    result = Reference_Item()
+def parse_authors_from_text(ref_item):
     try:
         authors = ref_item.find_element(By.CLASS_NAME, 'references__authors').text
         authors_list = [author.strip() for author in authors.replace(' and ', ',').split(',')]
-        result.authors = authors_list
+        return authors_list
+    except Exception as e:
+        logger.error(f'Error getting authors from references__authors.text: {e}')
+        return []
+
+def parse_reference_item(ref_item, pub_type):
+    result = Reference_Item()
+    # get authors (working)
+    try:
+        try:
+            authors = ref_item.find_element(By.CLASS_NAME, 'references__authors').find_elements(By.CLASS_NAME, 'references__name')
+            if len(authors) > 0:
+                authors_list = [author.text.strip() for author in authors]
+                result.authors = authors_list
+        except Exception as e:
+            logger.error(f'Error getting authors using references__name: {e}')
+        
+        if not result.authors:
+            result.authors = parse_authors_from_text(ref_item)
     except Exception as e:
         logger.error(f'Error getting authors: {e}')
+    # get year (working)
     try:
-        year = ref_item.find_element(By.CLASS_NAME, 'pub-year').text.strip('().')
-        result.year = year
+        try:
+            year = ref_item.find_element(By.CLASS_NAME, 'references__year').text.strip('().')
+            if year:
+                result.year = year
+        except Exception as e:
+            logger.error(f'Error getting year using references__year: {e}')
+        if not result.year:
+            result.year = ref_item.find_element(By.CLASS_NAME, 'pub-year').text.strip('().')
     except Exception as e:
-        logger.error(f'Error getting year: {e}')
+        logger.error(f'Error getting year using pub-year: {e}')
+    # get title (working)
     try:
         title = ref_item.find_element(By.CLASS_NAME, 'references__article-title').text
         result.title = title
     except Exception as e:
         logger.error(f'Error getting title: {e}')
+    # get publication (working)
     try:
         publication = ref_item.find_element(By.CLASS_NAME, 'references__source').text
         result.publication = publication
     except Exception as e:
         logger.error(f'Error getting publication: {e}')
+    # get volume (working)
     try:
-        volume = ref_item.find_element(By.CLASS_NAME, 'volume').text
-        result.volume = volume
+        try:
+            volume = ref_item.find_element(By.CLASS_NAME, 'references__volume').text
+            if volume:
+                result.volume = volume
+        except Exception as e:
+            logger.error(f'Error getting volume using references__volume: {e}')
+        
+        if not result.volume:
+            result.volume = ref_item.find_element(By.CLASS_NAME, 'volume').text
     except Exception as e:
-        logger.error(f'Error getting volume: {e}')
+        logger.error(f'Error getting volume using volume classname: {e}')
+    # get issue (working)
     try:
-        issue = ref_item.find_element(By.CLASS_NAME, 'issue').text
-        result.issue = issue
+        try:
+            issue = ref_item.find_element(By.CLASS_NAME, 'references__issue').text
+            if issue:
+                result.issue = issue
+        except Exception as e:
+            logger.error(f'Error getting issue using references__issue: {e}')
+        if not result.issue:
+            result.issue = ref_item.find_element(By.CLASS_NAME, 'issue').text
     except Exception as e:
-        logger.error(f'Error getting issue: {e}')
+        logger.error(f'Error getting issue using issue classname: {e}')
+    # get publication date
     try:
         pub_date = ref_item.find_element(By.CLASS_NAME, 'pub-date').text
         pub_date = pub_date.split(':')[1].strip(' ')
         result.pub_date = pub_date
     except Exception as e:
-        logger.error(f'Error getting publication date: {e}')
+        logger.error(f'Error getting publication date using pub-date classname: {e}')
+    # get doi (working)
     try:
-        doi = ref_item.find_element(By.CLASS_NAME, 'link').get_attribute('href')
+        try:
+            doi = ref_item.find_element(By.CSS_SELECTOR, 'span.doi').text
+        except Exception as e:
+            doi = None
+            logger.error(f'Error getting doi using span.doi: {e}')
+        if not doi:
+            doi = ref_item.find_element(By.CLASS_NAME, 'link').get_attribute('href')
         if 'doi.org' in doi:
             doi = doi.split('doi.org/')[1]
         result.doi = doi
     except Exception as e:
-        logger.error(f'Error getting doi: {e}')
+        logger.error(f'Error getting doi using link classname and href attribute: {e}')
+    # try get note
+    try:
+        note = ref_item.find_element(By.CLASS_NAME, 'references__note').text
+        if note:
+            result.note = note
+    except Exception as e:
+        logger.error(f'Error getting note: {e}')
 
     return result
 
