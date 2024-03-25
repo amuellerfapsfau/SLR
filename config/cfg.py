@@ -41,6 +41,36 @@ scopus = {
     }
 }
 
+arxiv = {
+    'field_mapping' : {
+        'search_results': {
+            'title': 'title', # available
+            # 'identifier': 'eid',
+            'doi': 'doi', # often empty
+            # 'subtype': 'subtypeDescription',
+            'publication_name': 'journal_ref', # TODO check if mapping correct
+            # 'aggregation_type': 'aggregationType',
+            'author': 'authors', # list of arxiv.Result.Author
+            # 'country': 'affiliation_country',
+            'date': 'published', # datetime.datetime
+            # 'keywords': 'authkeywords',
+            'subject_areas': 'categories', #  list of strings TODO need translation of strings (e.g. cs.LG -> Computer Science, Learning)
+            # see also 'primary_category'
+            'open_access': 'openaccess', # always True
+            # 'funded_by': 'fund_sponsor',
+            'abstract': 'summary', # check if correct and always complete
+            # 'cited_by_count': 'citedby_count',
+            'comments': 'comment', # often empty
+            'url': 'entry_id', # available
+            'full_paper_pdf': 'pdf_url' # available
+        },
+    },
+    'category_taxonomy': {
+        'db_name': r"C:\\Repositories\\_Data\SLR\\arxiv_category_taxonomy.db",
+        'table_name': 'category_taxonomy'
+    }
+}
+
 crossref = {
     'field_mapping' : {
         'search_results': {
