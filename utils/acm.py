@@ -51,7 +51,7 @@ def build_acm_search_url(query):
     query = ' OR '.join([title_query, abstract_query, keyword_query])
     query = urllib.parse.quote(query)
     query = query.replace('%20', '+')
-    query = f'https://dl.acm.org/action/doSearch?fillQuickSearch=false&target=advanced&AllField={query}&expand=all&startPage=0&pageSize=10'
+    query = f'https://dl.acm.org/action/doSearch?fillQuickSearch=false&target=advanced&AllField={query}&expand=all&startPage=0&pageSize=50'
     return query
 
 def scrape_acm_search_results(url, search_results_list, driver=None):

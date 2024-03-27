@@ -36,7 +36,7 @@ process_substring_arxiv = '"coat* machine" OR "physical vapor deposition" OR "ph
 not_disease_substring = '-disease'
 product_substring = '"thin?film" OR "coat*" OR "lamination"'
 application_substring = '"semiconductor" OR "solar cell" OR "photovoltaic" OR "lens" OR "reflectance" OR "reflective" OR "anti?reflective" OR "ophtalmic" OR "optical" OR "optoelectronic" OR "optical filter" OR "optical coating" OR "optical film" OR "optical layer" OR "optical lamination" OR "optical device" OR "optical component" OR "optical system" OR "optical instrument" OR "optical equipment" OR "optical material" OR "optical technology" OR "optical process" OR "optical product" OR "optical application" OR "optical service" OR "optical solution" OR "optical tool" OR "optical technique" OR "optical method" OR "optical approach"'
-application_substring = '"lens*" OR "reflectance" OR "reflective" OR "anti?reflective" OR "ophtalmic" OR "optoelectronic" OR "optical filter" OR "optical coating" OR "optical film"' # OR "optical device" OR "optical component" OR "optical system" OR "optical instrument" OR "optical equipment" OR "optical material" OR "optical technology" OR "optical process" OR "optical product" OR "optical application" OR "optical service" OR "optical solution" OR "optical tool" OR "optical technique" OR "optical method" OR "optical approach"'
+application_substring = '"lens*" OR "reflectance" OR "reflective" OR "anti?reflective" OR "ophtalmic" OR "optoelectronic" OR "optical filter*" OR "optical coat*" OR "optical film*"' # OR "optical device" OR "optical component" OR "optical system" OR "optical instrument" OR "optical equipment" OR "optical material" OR "optical technology" OR "optical process" OR "optical product" OR "optical application" OR "optical service" OR "optical solution" OR "optical tool" OR "optical technique" OR "optical method" OR "optical approach"'
 search_string = f"({methodology_substring}) AND ({process_substring}) AND ({product_substring}) AND ({application_substring})"
 search_string = f"({methodology_substring}) AND ({product_substring} OR {process_substring}) AND ({application_substring})" # testweise
 arxiv_search_string = f"({methodology_substring}) AND ({process_substring_arxiv}) {not_disease_substring} AND ({product_substring}) AND ({application_substring})"
@@ -46,8 +46,10 @@ title_keyword_results = get_title_keyword_results(search_string)
 terms_title_keyword_results_dict = get_term_title_keyword_results(search_string)
 all_fields_results = get_all_results(search_string)
 terms_regex_dict = convert_search_string_to_regex(search_string)
-combine_results_to_TITLE_ABS_KEY(all_fields_results, title_keyword_results, terms_title_keyword_results_dict, terms_regex_dict)
+springer_tite_abs_key_results = combine_results_to_TITLE_ABS_KEY(all_fields_results, title_keyword_results, terms_title_keyword_results_dict, terms_regex_dict)
 
+springer_db = r"C:\\Repositories\\_Data\SLR\\springer.db"
+store_springer_results_in_sqlite(springer_db, "search_results", springer_tite_abs_key_results)
 
 # wip arxiv
 category_taxonomy_df = load_arxiv_category_taxonomy_db()

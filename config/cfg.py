@@ -154,4 +154,29 @@ semantic_scholar = {
 }
 
 springer = {
+    'field_mapping' : {
+        'search_results': {
+            'title': 'title', # available
+            'identifier': 'identifier', # 'doi:10.1007/978-3-031-34111-3_14'
+            'doi': 'doi', # '10.1007/978-3-031-34111-3_14'
+            'subtype': 'contentType', # 'Chapter ConferencePaper'
+            'publication_name': 'publicationName', # 'Artificial Intelligence Applications and Innovations'
+            'aggregation_type': 'publicationType', # 'Book'
+            'author': 'creators', # TODO parse from: [{'creator': 'Akanuma, Asei'}, {'creator': 'Stamate, Daniel'}, {'creator': 'Bishop, J. Mark'}]
+            'country': None,
+            'date': 'publicationDate', # '2023-01-01'
+            'keywords': None,
+            'subject_areas': 'subjects', # TODO parse from: ['Computer Science', 'Artificial Intelligence', 'Computer Systems Organization and Communication Networks', 'Computing Milieux', 'Computer Communication Networks', 'Computer Applications']
+            'open_access': 'openaccess', # 'false'
+            'funded_by': None,
+            'abstract': 'abstract', # available
+            'cited_by_count': None,
+            'language': 'language', # 'en
+            'url': 'url', # TODO parse from: [{'format': '', 'platform': '', 'value': 'http://dx.doi.org/10.1007/978-3-031-34111-3_14'}]
+            # 'publisher': 'publisher', # 'Springer' TODO maybe use later
+            # 'genre': 'genre', # 'OriginalPaper' TODO maybe use later
+        }
+    }
+
+   
 }
