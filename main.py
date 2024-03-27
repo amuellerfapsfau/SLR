@@ -50,6 +50,7 @@ springer_tite_abs_key_results = combine_results_to_TITLE_ABS_KEY(all_fields_resu
 
 springer_db = r"C:\\Repositories\\_Data\SLR\\springer.db"
 store_springer_results_in_sqlite(springer_db, "search_results", springer_tite_abs_key_results)
+print('Springer search results stored in sqlite')
 
 # wip arxiv
 category_taxonomy_df = load_arxiv_category_taxonomy_db()

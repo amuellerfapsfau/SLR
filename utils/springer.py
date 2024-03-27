@@ -2,6 +2,7 @@ import urllib.parse
 import requests
 import logging
 import re
+import time
 import pandas as pd
 from ratelimiter import RateLimiter
 from sqlalchemy import create_engine
@@ -26,7 +27,7 @@ def build_springer_query(query, start=1, page_length=9999999):
     query = f"https://api.springernature.com/metadata/json?api_key={apikey['springer']}&q={urllib.parse.quote(query)}&s={start}&p={page_length}"
     return query
 
-@RateLimiter(max_calls=150, period=60)
+@RateLimiter(max_calls=1, period=1)
 def get_results(url):
     response = requests.get(url)
     if response.status_code != 200:
@@ -40,7 +41,7 @@ def get_term_title_keyword_results(search_string):
     terms = search_string.strip(' ()').split(') AND (')
     logger.info(f'Found {len(terms)} terms in search string')
     for term in terms:
-        logger.info(f'Processing term:\r\n{term}')
+        logger.info(f'Processing term:\n{term}')
         # term = term.strip(' ()') #term = term + ' AND -("test eins") OR -"test zwei"'
         # find negations --> soll: -(title:sometitle)
         indices_neg = [m.start() for m in re.finditer('-', term)]
@@ -64,7 +65,7 @@ def get_term_title_keyword_results(search_string):
         title_term = f"title:{title_term.replace(' OR ', ' OR title:').replace(' AND ', ' AND title:').replace('title:-', '-')}"
         keyword_term = title_term.replace('title:', 'keyword:')
         search_term = f'({title_term}) OR ({keyword_term})'
-        logger.info(f'Final SpringerLink TITLE-KEYWORD search string of term:\r\n{search_term}')
+        logger.info(f'Final SpringerLink TITLE-KEYWORD search string of term:\n{search_term}')
         search_term_results = get_query_results(search_term)
         search_term_results_dict[term] = search_term_results
         logger.info(f'Added SpringerLink TITLE-KEYWORD query to dictionary')
@@ -79,7 +80,7 @@ def get_title_keyword_results(search_string):
     terms = search_string.split(') AND (')
     logger.info(f'Found {len(terms)} terms in search string')
     for term in terms:
-        logger.info(f'Processing term:\r\n{term}')
+        logger.info(f'Processing term:\n{term}')
         term = term.strip(' ()') #term = term + ' AND -("test eins") OR -"test zwei"'
         # find negations --> soll: -(title:sometitle)
         indices_neg = [m.start() for m in re.finditer('-', term)]
@@ -106,14 +107,14 @@ def get_title_keyword_results(search_string):
         final_title_keyword_search_string.append(search_term)
     final_title_keyword_search_string = ') AND ('.join(final_title_keyword_search_string)
     final_title_keyword_search_string = f'({final_title_keyword_search_string})'
-    logger.info(f'Final SpringerLink TITLE-KEYWORD search string:\r\n{final_title_keyword_search_string}')
+    logger.info(f'Final SpringerLink TITLE-KEYWORD search string:\n{final_title_keyword_search_string}')
     search_term_results = get_query_results(final_title_keyword_search_string)
     logger.info(f'Finished SpringerLink TITLE-KEYWORD query')
     return search_term_results
 
 
 def get_query_results(search_term):
-    logger.info(f'Getting results for:\r\n{search_term}')
+    logger.info(f'Getting results for:\n{search_term}')
     results = []
     # get first page and determine max pagelength, number of required requests
     json_results = get_results(build_springer_query(search_term))
@@ -126,23 +127,27 @@ def get_query_results(search_term):
     start = int(json_results['result'][0]['start'])
     logger.info(f'Found {hits} hits')
     logger.info(f'Continue with page length {page_length}')
+    start += 1
     while len(results) < hits:
-        start += 1
         json_results = get_results(build_springer_query(search_term, start, page_length))
         if json_results:
             results.extend(json_results['records'])
             logger.info(f'Finished page {start} with {len(results)} results')
         else:
             logger.error(f'No results for {search_term} at start {start}')
+            logger.info('Trying again after 5 seconds')
+            time.sleep(5)
+            continue
+        start += 1
         if start % 4 == 0:
             # print a progress bar
             progress = len(results) / hits * 100
-            print(f'Progress of SpringerLink query: [{"#" * int(progress / 10)}{" " * (10 - int(progress / 10))}] {progress:.2f}%')
+            print(f'Progress of SpringerLink query: [{"#" * int(progress)}{" " * (100 - int(progress))}] {progress:.2f}%')
     logger.info(f'Finished query with {len(results)} results')
     return results
 
 def get_all_results(search_term):
-    logger.info(f'Start getting ALL-query results for:\r\n{search_term}')
+    logger.info(f'Start getting ALL-query results for:\n{search_term}')
     results = []
     # get first page and determine max pagelength, number of required requests
     json_results = get_results(build_springer_query(search_term))
@@ -166,7 +171,7 @@ def get_all_results(search_term):
         if start % 4 == 0:
             # print a progress bar
             progress = len(results) / hits * 100
-            print(f'Progress of SpringerLink query: [{"#" * int(progress / 10)}{" " * (10 - int(progress / 10))}] {progress:.2f}%')
+            print(f'Progress of SpringerLink query: [{"#" * int(progress)}{" " * (100 - int(progress))}] {progress:.2f}%')
     logger.info(f'Finished getting ALL-query results with {len(results)} results')
     return results
 
@@ -232,7 +237,7 @@ def convert_search_string_to_regex(search_string):
         # create capture group for each term
         term = term.replace(' OR ', '|').replace(' AND ', '|')
         term = f'{neg_lookahead}.*({term}).*'
-        logger.info(f'Final regex search string of term:\r\n{term}')
+        logger.info(f'Final regex search string of term:\n{term}')
         regex_expressions_dict[dict_keys[i]] = term
     logger.info(f'Finished converting single terms of search string to regex')       
     return regex_expressions_dict
@@ -246,7 +251,7 @@ def combine_results_to_TITLE_ABS_KEY(all_fields_results, title_keyword_results, 
     terms_abstract_results_dict = {term: [] for term in terms_regex_dict.keys()}
     logger.info(f'Starting to search for matching abstracts')
     for term, regex in terms_regex_dict.items():
-        logger.info(f'Searching matching abstracts for term:\r\n{term}')
+        logger.info(f'Searching matching abstracts for term:\n{term}')
         for all_fields_res in all_fields_results:
             if not 'abstract' in all_fields_res:
                 continue
@@ -263,7 +268,7 @@ def combine_results_to_TITLE_ABS_KEY(all_fields_results, title_keyword_results, 
             if 'title' in res:
                 logger.info(f'"{res["title"]}" already in title_keyword_results')
             else:
-                logger.info(f'{res}\r\nalready in title_keyword_results')
+                logger.info(f'{res}\nalready in title_keyword_results')
             continue
         found = True
         for term in terms_abstract_results_dict.keys():
@@ -275,7 +280,7 @@ def combine_results_to_TITLE_ABS_KEY(all_fields_results, title_keyword_results, 
             if 'title' in res:
                 logger.info(f'Added using abstract: "{res["title"]}"')
             else:
-                logger.info(f'Added using abstract:\r\n{res}')
+                logger.info(f'Added using abstract:\n{res}')
             title_abs_key_results.append(res)
     logger.info(f'Finished combining results to TITLE-ABSTRACT-KEYWORD results')
     logger.info(f'Found {len(title_abs_key_results)} results')
